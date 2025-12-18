@@ -1,0 +1,19 @@
+{
+  "sites": [
+    {
+      "service_id": "S1",
+      "container_name": "cmas-site-1",
+      "port": 5000
+    },
+    {
+      "service_id": "S2",
+      "container_name": "cmas-site-2",
+      "port": 5000
+    },
+    {
+      "service_id": "S3",
+      "container_name": "cmas-site-3",
+      "port": 5000
+    }
+  ]
+}
