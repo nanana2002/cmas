@@ -45,34 +45,31 @@ type GlobalConfig struct {
 // 整个项目通过该变量访问配置
 var Cfg GlobalConfig
 
-// getContainerIP 安全获取容器内网IP（增加重试+日志）
-// 参数：containerName - 容器名（如cmas-site-1）
-// 返回：容器内网IP（如172.17.0.8），获取失败返回空字符串
+// getContainerIP 安全获取容器IP（兼容所有自定义网络）
 func getContainerIP(containerName string) string {
-	var ip string
-	// 重试3次（避免容器刚启动IP未分配）
-	for i := 0; i < 3; i++ {
-		// 执行docker inspect命令获取IP
-		cmd := exec.Command("docker", "inspect", "-f", "{{.NetworkSettings.IPAddress}}", containerName)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Printf("[CONFIG] 第%d次获取容器%s IP失败：%v\n", i+1, containerName, err)
-			time.Sleep(1 * time.Second) // 重试间隔1秒
-			continue
-		}
-		// 去除空格/换行符
-		ip = strings.TrimSpace(string(output))
-		if ip != "" {
-			break // 获取到IP，退出重试
-		}
-	}
-	// 最终日志
-	if ip == "" {
-		fmt.Printf("[CONFIG] 容器%s IP获取失败（所有重试均失败）\n", containerName)
-	} else {
-		fmt.Printf("[CONFIG] 容器%s IP获取成功：%s\n", containerName, ip)
-	}
-	return ip
+    var ip string
+    // 重试3次
+    for i := 0; i < 3; i++ {
+        // 执行docker inspect，获取所有网络的IP（关键：兼容自定义网络）
+        cmd := exec.Command("docker", "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", containerName)
+        output, err := cmd.CombinedOutput()
+        if err != nil {
+            fmt.Printf("[CONFIG] 第%d次获取容器%s IP失败：%v\n", i+1, containerName, err)
+            time.Sleep(1 * time.Second)
+            continue
+        }
+        // 清理输出（去空格/换行）
+        ip = strings.TrimSpace(string(output))
+        if ip != "" {
+            break
+        }
+    }
+    if ip == "" {
+        fmt.Printf("[CONFIG] 容器%s IP获取失败\n", containerName)
+    } else {
+        fmt.Printf("[CONFIG] 容器%s IP获取成功：%s\n", containerName, ip)
+    }
+    return ip
 }
 
 // init 初始化函数（包加载时自动执行）

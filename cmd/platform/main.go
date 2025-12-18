@@ -22,6 +22,23 @@ func main() {
     // 创建Gin引擎
     r := gin.Default()
 
+    // 在main函数中，r := gin.Default() 后添加：
+    // 托管服务提供者页面
+    r.StaticFile("/provider", "./web/provider/index.html")
+    // 托管用户页面
+    r.StaticFile("/user", "./web/user/index.html")
+    // 允许跨域（解决前端请求后端的跨域问题）
+    r.Use(func(c *gin.Context) {
+        c.Header("Access-Control-Allow-Origin", "*")
+        c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        c.Header("Access-Control-Allow-Headers", "Content-Type")
+        if c.Request.Method == "OPTIONS" {
+            c.AbortWithStatus(204)
+            return
+        }
+        c.Next()
+    })
+    
     // 1. 服务注册接口（供Client调用）
     r.POST("/api/v1/services", func(c *gin.Context) {
         var s models.Service

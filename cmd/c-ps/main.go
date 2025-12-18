@@ -87,7 +87,25 @@ func getCmaMetrics() (map[string][]models.ServiceInstanceInfo, error) {
 func main() {
     logger.Info("CPS", "启动路径选择服务，端口：%d", config.Cfg.CPS.Port)
     r := gin.Default()
-
+    // ========== 新增：跨域中间件 ==========
+    r.Use(func(c *gin.Context) {
+        // 允许所有来源（生产环境可限定为前端IP：http://192.168.235.48:8080）
+        c.Header("Access-Control-Allow-Origin", "*")
+        // 允许的请求方法（包含OPTIONS预检请求）
+        c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        // 允许的请求头
+        c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        // 预检请求缓存时间（避免重复OPTIONS请求）
+        c.Header("Access-Control-Max-Age", "86400")
+        
+        // 处理OPTIONS预检请求（关键：直接返回204）
+        if c.Request.Method == "OPTIONS" {
+            c.AbortWithStatus(204)
+            return
+        }
+        c.Next()
+    })
+    // =====================================
     // 路径选择接口
     r.POST("/select", func(c *gin.Context) {
         var req models.ClientRequest

@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>用户端 - CMAS服务调用</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 20px; text-align: center; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
+        select, textarea, input[type="file"] { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+        textarea { min-height: 150px; resize: vertical; }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .result-container { margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 4px; display: none; }
+        .result-title { font-weight: bold; margin-bottom: 10px; color: #333; }
+        .result-content { white-space: pre-wrap; color: #444; }
+        .status { margin-top: 10px; padding: 10px; border-radius: 4px; }
+        .status-success { background-color: #d4edda; color: #155724; }
+        .status-error { background-color: #f8d7da; color: #721c24; }
+        .loading { text-align: center; padding: 20px; color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CMAS服务调用平台</h1>
+        
+        <!-- 服务选择表单 -->
+        <div class="form-group">
+            <label for="service-select">选择已注册的服务</label>
+            <select id="service-select">
+                <option value="">-- 请选择服务 --</option>
+                <option value="S1">S1 - AR/VR轻量服务</option>
+                <option value="S2">S2 - 智能交通轻量服务</option>
+                <option value="S3">S3 - 大模型轻量服务</option>
+            </select>
+        </div>
+
+        <!-- 请求数据输入 -->
+        <div class="form-group">
+            <label for="request-data">输入请求数据（文本）</label>
+            <textarea id="request-data" placeholder="例如：
+- 大模型服务：请解释什么是人工智能
+- 文生图服务：生成一张海边日落的图片
+- 智能交通：分析北京朝阳区晚高峰交通流量"></textarea>
+        </div>
+
+        <!-- 可选文件上传（文生图/文件处理服务用） -->
+        <div class="form-group">
+            <label for="file-upload">上传附件（可选）</label>
+            <input type="file" id="file-upload" accept="*">
+        </div>
+
+        <!-- 提交按钮 -->
+        <button id="submit-btn" onclick="submitRequest()">提交请求</button>
+
+        <!-- 结果展示区域 -->
+        <div id="result-container" class="result-container">
+            <div class="result-title">服务返回结果：</div>
+            <div id="result-content" class="result-content"></div>
+            <div id="status" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+    // 新增：IP替换函数
+    function replaceContainerIP(csciId) {
+        const [containerIP, containerPort] = csciId.split(':');
+        const hostIP = "192.168.235.48"; // 替换为你的服务器IP
+        const portMap = { "5000": "5003" };
+        return `${hostIP}:${portMap[containerPort] || containerPort}`;
+    }
+
+    // 提交请求核心逻辑
+    function submitRequest() {
+        const serviceId = document.getElementById('service-select').value;
+        const requestData = document.getElementById('request-data').value.trim();
+        const submitBtn = document.getElementById('submit-btn');
+        const resultContainer = document.getElementById('result-container');
+        const resultContent = document.getElementById('result-content');
+        const statusDiv = document.getElementById('status');
+
+        if (!serviceId) { alert('请选择要调用的服务！'); return; }
+        if (!requestData) { alert('请输入请求数据！'); return; }
+
+        submitBtn.disabled = true;
+        resultContainer.style.display = 'block';
+        resultContent.textContent = '正在请求服务，请稍候...';
+        statusDiv.className = 'status';
+        statusDiv.textContent = '';
+
+        // 步骤1：向C-PS请求最优Site
+        fetch('http://192.168.235.48:8084/select', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                service_id: serviceId,
+                max_accept_cost: 10,
+                max_accept_delay: 30
+            })
+        })
+        .then(response => response.json())
+        .then(cpsData => {
+            if (!cpsData.success) {
+                throw new Error(cpsData.msg || '获取最优服务节点失败');
+            }
+            const csciId = cpsData.data.csci_id;
+            const startTime = Date.now();
+
+            // 步骤2：调用最优Site的服务接口（关键：替换为宿主机IP+映射端口）
+            const hostCSCIID = replaceContainerIP(csciId);
+            return fetch(`http://${hostCSCIID}/run`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    service_id: serviceId,
+                    input: requestData,
+                    timestamp: new Date().getTime()
+                })
+            })
+            .then(response => response.json())
+            .then(siteData => {
+                const endTime = Date.now();
+                const costTime = endTime - startTime;
+
+                // 展示结果（兼容文本/图片）
+                if (typeof siteData.result === 'object' && siteData.result.image_url) {
+                    // 替换图片URL的容器IP为宿主机IP
+                    const imageURL = siteData.result.image_url.replace(/172.18.0.2:5000/, '192.168.235.48:5003');
+                    resultContent.innerHTML = `
+                        <p>图片回显：</p>
+                        <img src="${imageURL}" style="max-width: 400px; max-height: 400px;" />
+                        <p>原文件名：${siteData.result.original_filename}</p>
+                    `;
+                } else {
+                    resultContent.textContent = siteData.result || '无返回数据';
+                }
+                statusDiv.className = 'status status-success';
+                statusDiv.textContent = `请求成功 | 服务节点：${csciId} → 宿主机访问：${hostCSCIID} | 耗时：${costTime}ms`;
+            });
+        })
+        .catch(error => {
+            resultContent.textContent = '';
+            statusDiv.className = 'status status-error';
+            statusDiv.textContent = `请求失败：${error.message}`;
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+        });
+    }
+    </script>
+</body>
+</html>

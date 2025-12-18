@@ -1,39 +1,57 @@
+# 安装依赖（容器内执行）
+pip install flask-cors
+
+# 修改app.py
 from flask import Flask, request, jsonify
-import os
+from flask_cors import CORS  # 新增
+import time
 
 app = Flask(__name__)
+CORS(app) 
 
-# 从环境变量读取配置（启动时传入）
-SERVICE_ID = os.getenv("SERVICE_ID", "S1")
-GAS = int(os.getenv("GAS", 2))
-COST = int(os.getenv("COST", 3))
-DELAY = int(os.getenv("DELAY", 10))
-CSCI_ID = os.getenv("CSCI_ID", "172.17.0.10:5000")
-SERVICE_NAME = os.getenv("SERVICE_NAME", "轻量计算服务")
+# 模拟不同服务的处理逻辑
+SERVICE_HANDLERS = {
+    "S1": lambda data: f"AR/VR服务处理结果：{data}（模拟渲染完成）",
+    "S2": lambda data: f"智能交通服务分析结果：{data}（模拟流量分析完成）",
+    "S3": lambda data: f"大模型服务回答：{data}（模拟大模型生成完成）"
+}
 
-# 1. 指标接口（供C-SMA拉取）
-@app.route("/metrics")
-def metrics():
-    return jsonify({
-        "service_id": SERVICE_ID,
-        "gas": GAS,
-        "cost": COST,
-        "csci_id": CSCI_ID,
-        "delay": DELAY,
-        "service_name": SERVICE_NAME
-    })
+@app.route('/run', methods=['POST'])
+def run_service():
+    try:
+        data = request.get_json()
+        service_id = data.get('service_id')
+        input_data = data.get('input')
+        
+        # 模拟处理耗时
+        time.sleep(0.1)
+        
+        # 调用对应服务的处理逻辑
+        result = SERVICE_HANDLERS.get(service_id, lambda x: f"未知服务处理结果：{x}")(input_data)
+        
+        return jsonify({
+            "success": True,
+            "result": result,
+            "msg": "处理成功"
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "result": "",
+            "msg": str(e)
+        }), 500
 
-# 2. 业务接口（接收请求并返回结果）
-@app.route("/run", methods=["POST"])
-def run():
-    data = request.json
-    result = f"服务[{SERVICE_ID}]处理成功：输入={data}，延迟={DELAY}ms"
-    return jsonify({
-        "success": True,
-        "result": result,
-        "service_id": SERVICE_ID,
-        "csci_id": CSCI_ID
-    })
+@app.route('/metrics', methods=['GET'])
+def get_metrics():
+    # 原有的metrics接口（返回gas/cost/delay等）
+    import os
+    service_id = os.environ.get('SERVICE_ID', 'S1')
+    metrics = {
+        "S1": {"service_id": "S1", "gas": 3, "cost": 4, "csci_id": "172.17.0.8:5000", "delay": 8},
+        "S2": {"service_id": "S2", "gas": 2, "cost": 5, "csci_id": "172.17.0.9:5000", "delay": 12},
+        "S3": {"service_id": "S3", "gas": 1, "cost": 2, "csci_id": "172.17.0.10:5000", "delay": 15}
+    }
+    return jsonify(metrics[service_id])
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

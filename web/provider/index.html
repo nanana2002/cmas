@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>服务提供者 - CMAS指标监控</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 20px; }
+        .refresh-info { color: #666; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f0f0f0; font-weight: bold; }
+        tr:hover { background-color: #f9f9f9; }
+        .metric-item { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .loading { color: #007bff; font-style: italic; }
+        .error { color: #dc3545; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CMAS 服务指标监控（服务提供者端）</h1>
+        <div class="refresh-info">最后刷新时间：<span id="last-refresh">--</span> | 自动刷新：10秒/次</div>
+        <div id="metrics-container">
+            <div class="loading">正在加载指标数据...</div>
+        </div>
+    </div>
+
+    <script>
+        // 格式化时间
+        function formatTime(timestamp) {
+            return new Date(timestamp).toLocaleString('zh-CN');
+        }
+
+        // 加载指标数据
+        function loadMetrics() {
+            fetch('http://192.168.235.48:8083/sync')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        document.getElementById('metrics-container').innerHTML = `<div class="error">加载失败：${data.msg || '未知错误'}</div>`;
+                        return;
+                    }
+
+                    // 构建指标表格
+                    let html = '<table><tr><th>服务ID</th><th>容器IP:端口</th><th>可用实例数(Gas)</th><th>成本(Cost)</th><th>延迟(Delay/ms)</th><th>状态</th></tr>';
+                    const metrics = data.data;
+                    for (const serviceId in metrics) {
+                        metrics[serviceId].forEach(item => {
+                            const status = item.gas > 0 ? '正常' : '无可用实例';
+                            const statusColor = item.gas > 0 ? '#28a745' : '#dc3545';
+                            html += `<tr>
+                                <td>${item.service_id}</td>
+                                <td>${item.csci_id}</td>
+                                <td>${item.gas}</td>
+                                <td>${item.cost}</td>
+                                <td>${item.delay}</td>
+                                <td style="color: ${statusColor}">${status}</td>
+                            </tr>`;
+                        });
+                    }
+                    html += '</table>';
+
+                    // 更新页面
+                    document.getElementById('metrics-container').innerHTML = html;
+                    document.getElementById('last-refresh').textContent = formatTime(Date.now());
+                })
+                .catch(error => {
+                    document.getElementById('metrics-container').innerHTML = `<div class="error">加载失败：${error.message}</div>`;
+                });
+        }
+
+        // 初始加载 + 定时刷新
+        loadMetrics();
+        setInterval(loadMetrics, 10000); // 10秒刷新一次
+    </script>
+</body>
+</html>
