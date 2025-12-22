@@ -28,26 +28,14 @@ def get_metrics():
 # ========== 2. 核心服务接口（供用户调用） ==========
 @app.route('/run', methods=['POST'])
 def run_service():
-    """处理用户请求：文本回显 / 图片回显"""
+    """处理用户请求：文本回显 / 图片回显（兼容JSON/FormData）"""
     try:
-        # ------------- 处理文本请求 -------------
-        if request.is_json:
-            data = request.get_json()
-            input_text = data.get("input", "")
-            service_id = data.get("service_id", "S3")
-            
-            # 文本回显逻辑
-            return jsonify({
-                "success": True,
-                "result": input_text,  # 输入什么返回什么
-                "msg": "文本请求处理成功",
-                "service_id": service_id,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
-        
-        # ------------- 处理图片上传请求 -------------
-        elif 'file' in request.files:
+        # ------------- 处理FormData请求（图片上传）-------------
+        if 'file' in request.files:
             file = request.files['file']
+            service_id = request.form.get('service_id', 'S3')
+            input_text = request.form.get('input', '')
+            
             if file.filename == '':
                 return jsonify({"success": False, "msg": "未选择图片文件"}), 400
             
@@ -61,18 +49,34 @@ def run_service():
             return jsonify({
                 "success": True,
                 "result": {
-                    "image_url": f"http://{os.environ.get('SERVICE_IP', '172.17.0.10')}:5000/uploads/{filename}",
+                    "image_url": f"http://{os.environ.get('SERVICE_IP', '172.18.0.2')}:5000/uploads/{filename}",
                     "original_filename": file.filename,
+                    "input_text": input_text,
                     "message": "图片已接收，返回原图片"
                 },
                 "msg": "图片请求处理成功",
-                "service_id": "S3",
+                "service_id": service_id,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            })
+        
+        # ------------- 处理JSON请求（文本）-------------
+        elif request.is_json:
+            data = request.get_json()
+            input_text = data.get("input", "")
+            service_id = data.get("service_id", "S3")
+            
+            # 文本回显逻辑
+            return jsonify({
+                "success": True,
+                "result": input_text,  # 输入什么返回什么
+                "msg": "文本请求处理成功",
+                "service_id": service_id,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
         
         # ------------- 无效请求 -------------
         else:
-            return jsonify({"success": False, "msg": "不支持的请求格式（仅支持JSON文本/图片上传）"}), 400
+            return jsonify({"success": False, "msg": "不支持的请求格式（仅支持JSON文本/FormData图片上传）"}), 400
     
     except Exception as e:
         return jsonify({"success": False, "msg": f"服务处理失败：{str(e)}"}), 500
