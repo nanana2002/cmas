@@ -4,12 +4,12 @@
  - using env:	export GIN_MODE=release
  - using code:	gin.SetMode(gin.ReleaseMode)
 
-[GIN-debug] GET    /provider                 --> main.main.(*RouterGroup).StaticFile.func5 (4 handlers)
-[GIN-debug] HEAD   /provider                 --> main.main.(*RouterGroup).StaticFile.func5 (4 handlers)
-[GIN-debug] GET    /user                     --> main.main.(*RouterGroup).StaticFile.func6 (4 handlers)
-[GIN-debug] HEAD   /user                     --> main.main.(*RouterGroup).StaticFile.func6 (4 handlers)
-[GIN-debug] GET    /show                     --> main.main.(*RouterGroup).StaticFile.func7 (4 handlers)
-[GIN-debug] HEAD   /show                     --> main.main.(*RouterGroup).StaticFile.func7 (4 handlers)
+[GIN-debug] GET    /provider                 --> main.main.(*RouterGroup).StaticFile.func6 (4 handlers)
+[GIN-debug] HEAD   /provider                 --> main.main.(*RouterGroup).StaticFile.func6 (4 handlers)
+[GIN-debug] GET    /user                     --> main.main.(*RouterGroup).StaticFile.func7 (4 handlers)
+[GIN-debug] HEAD   /user                     --> main.main.(*RouterGroup).StaticFile.func7 (4 handlers)
+[GIN-debug] GET    /show                     --> main.main.(*RouterGroup).StaticFile.func8 (4 handlers)
+[GIN-debug] HEAD   /show                     --> main.main.(*RouterGroup).StaticFile.func8 (4 handlers)
 [GIN-debug] GET    /fig/*filepath            --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (4 handlers)
 [GIN-debug] HEAD   /fig/*filepath            --> github.com/gin-gonic/gin.(*RouterGroup).createStaticHandler.func1 (4 handlers)
 Serving static files from /fig at /home/daiyina/cmas-cats-go/fig
@@ -25,13 +25,30 @@ Registered route: HEAD /fig/*filepath
 [GIN-debug] POST   /api/upload/code          --> main.main.func2 (4 handlers)
 [GIN-debug] POST   /api/docker/create        --> main.main.func3 (4 handlers)
 [GIN-debug] GET    /health                   --> main.main.func4 (4 handlers)
+[GIN-debug] POST   /api/check/code           --> main.main.func5 (4 handlers)
 Platform服务启动：0.0.0.0:8081
 [GIN-debug] [WARNING] You trusted all proxies, this is NOT safe. We recommend you to set a value.
 Please check https://github.com/gin-gonic/gin/blob/master/docs/doc.md#dont-trust-all-proxies for details.
 [GIN-debug] Listening and serving HTTP on :8081
-[GIN] 2026/02/02 - 09:19:23 | 304 |     146.213µs |   172.25.21.118 | GET      "/provider"
-[GIN] 2026/02/02 - 09:19:23 | 200 |   64.058799ms |   172.25.21.118 | GET      "/api/get-available-params"
-最佳服务ID: S1, 目标路径: services/s1_service
-[GIN] 2026/02/02 - 09:19:28 | 200 |   24.289459ms |   172.25.21.118 | POST     "/api/upload/code"
-[GIN] 2026/02/02 - 09:21:40 | 403 |  1.223792232s |   172.25.21.118 | POST     "/api/upload/code"
-[GIN] 2026/02/02 - 09:22:09 | 403 |  207.691542ms |   172.25.21.118 | POST     "/api/upload/code"
+[GIN] 2026/02/02 - 09:59:41 | 304 |     108.164µs |   172.25.21.118 | GET      "/provider"
+[GIN] 2026/02/02 - 09:59:41 | 200 |   61.706231ms |   172.25.21.118 | GET      "/api/get-available-params"
+上传的文件名: figure_cut.zip
+保存路径: temp/code/figure_cut.zip
+解压命令输出: Archive:  temp/code/figure_cut.zip
+  inflating: temp/unzipped/figure_cut.py  
+  inflating: temp/unzipped/requirements.txt  
+
+解压后的文件列表:
+figure_cut.py
+requirements.txt
+[GIN] 2026/02/02 - 09:59:45 | 403 |    6.350591ms |   172.25.21.118 | POST     "/api/upload/code"
+上传的文件名: figure_cut.zip
+保存路径: temp/code/figure_cut.zip
+解压命令输出: Archive:  temp/code/figure_cut.zip
+  inflating: temp/unzipped/figure_cut.py  
+  inflating: temp/unzipped/requirements.txt  
+
+解压后的文件列表:
+figure_cut.py
+requirements.txt
+[GIN] 2026/02/02 - 10:00:02 | 403 |    5.182641ms |   172.25.21.118 | POST     "/api/check/code"

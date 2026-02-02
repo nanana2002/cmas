@@ -62,6 +62,19 @@
             <span id="codeMsg" class="msg"></span>
         </div>
 
+        <!-- 新增功能按钮 -->
+        <div class="form-group">
+            <label>代码检查：</label>
+            <button onclick="checkCode()">🔍 检查代码</button>
+            <span id="checkMsg" class="msg"></span>
+        </div>
+
+        <div class="form-group">
+            <label>创建容器并上传代码：</label>
+            <button onclick="createAndUploadContainer()">🚀 创建容器并上传代码</button>
+            <span id="uploadMsg" class="msg"></span>
+        </div>
+
         <!-- 创建容器 -->
         <div class="form-group">
             <label></label>
@@ -176,7 +189,84 @@
                 codeMsg.className = 'msg error';
             }
         }
-        // 3. 创建容器（使用自动检测的参数）
+
+        // 3. 检查代码
+        async function checkCode() {
+            const fileInput = document.getElementById('codeFile');
+            const checkMsg = document.getElementById('checkMsg');
+
+            if (!fileInput.files.length) {
+                checkMsg.textContent = '请选择一个文件';
+                checkMsg.className = 'msg error';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('codeFile', fileInput.files[0]);
+
+            checkMsg.textContent = '检查中...';
+            checkMsg.className = 'msg loading';
+
+            try {
+                const response = await fetch('/api/check/code', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    checkMsg.textContent = `检查通过：${result.message}`;
+                    checkMsg.className = 'msg success';
+                } else {
+                    checkMsg.textContent = `检查失败: ${result.error}`;
+                    checkMsg.className = 'msg error';
+                }
+            } catch (error) {
+                checkMsg.textContent = `检查失败: ${error.message}`;
+                checkMsg.className = 'msg error';
+            }
+        }
+
+        // 4. 创建容器并上传代码
+        async function createAndUploadContainer() {
+            const fileInput = document.getElementById('codeFile');
+            const uploadMsg = document.getElementById('uploadMsg');
+
+            if (!fileInput.files.length) {
+                uploadMsg.textContent = '请选择一个文件';
+                uploadMsg.className = 'msg error';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('codeFile', fileInput.files[0]);
+
+            uploadMsg.textContent = '创建容器并上传中...';
+            uploadMsg.className = 'msg loading';
+
+            try {
+                const response = await fetch('/api/upload/code', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    uploadMsg.textContent = `容器创建成功！代码已上传到: ${result.bestPath}`;
+                    uploadMsg.className = 'msg success';
+                } else {
+                    uploadMsg.textContent = `操作失败: ${result.error}`;
+                    uploadMsg.className = 'msg error';
+                }
+            } catch (error) {
+                uploadMsg.textContent = `操作失败: ${error.message}`;
+                uploadMsg.className = 'msg error';
+            }
+        }
+
+        // 5. 创建容器（使用自动检测的参数）
         function createContainer() {
             const createMsg = document.getElementById('createMsg');
             

@@ -101,11 +101,46 @@ func main() {
 			return
 		}
 
-		// ========== 新增：模型安全评估 ==========
-		securityResult := utils.CheckModelSecurity(savePath)
+		// 调试日志：打印文件名和解压路径
+		fmt.Printf("上传的文件名: %s\n", fileName)
+		fmt.Printf("保存路径: %s\n", savePath)
+
+		// 解压到 temp 文件夹
+		unzipPath := "temp/unzipped/"
+		os.MkdirAll(unzipPath, os.ModePerm)
+		cmd := exec.Command("unzip", "-o", savePath, "-d", unzipPath)
+		output, err := cmd.CombinedOutput()
+		fmt.Printf("解压命令输出: %s\n", string(output))
+		if err != nil {
+			fmt.Printf("解压文件失败: %s, 输出: %s\n", err.Error(), string(output))
+			c.JSON(500, gin.H{"error": "解压文件失败: " + err.Error()})
+			return
+		}
+
+		// 检查 requirements.txt 是否存在
+		requirementsPath := filepath.Join(unzipPath, "requirements.txt")
+		if _, err := os.Stat(requirementsPath); os.IsNotExist(err) {
+			fmt.Printf("未找到 requirements.txt 文件\n")
+			c.JSON(400, gin.H{"error": "未找到 requirements.txt 文件"})
+			return
+		}
+
+		// 调试日志：列出解压后的文件
+		files, err := os.ReadDir(unzipPath)
+		if err != nil {
+			fmt.Printf("读取解压目录失败: %s\n", err.Error())
+			c.JSON(500, gin.H{"error": "读取解压目录失败: " + err.Error()})
+			return
+		}
+		fmt.Println("解压后的文件列表:")
+		for _, file := range files {
+			fmt.Println(file.Name())
+		}
+
+		// 安全检查
+		securityResult := utils.CheckModelSecurity(unzipPath)
 		if !securityResult.Pass {
-			// 评估不通过，删除文件并返回原因
-			os.Remove(savePath)
+			os.RemoveAll(unzipPath)
 			c.JSON(403, gin.H{
 				"error":  "模型安全评估不通过，禁止上传",
 				"reason": securityResult.Reason,
@@ -113,7 +148,6 @@ func main() {
 			})
 			return
 		}
-		// ======================================
 
 		// 自动选择最佳路径
 		bestServiceID, err := getAvailableServiceID()
@@ -133,9 +167,6 @@ func main() {
 			c.JSON(500, gin.H{"error": "无法移动文件到最佳路径: " + err.Error()})
 			return
 		}
-
-		// 调试日志：打印最佳服务ID和路径
-		fmt.Printf("最佳服务ID: %s, 目标路径: %s\n", bestServiceID, bestPath)
 
 		c.JSON(200, gin.H{
 			"msg":      "文件已上传到最佳路径",
@@ -220,6 +251,95 @@ func main() {
 			"msg":    "Platform服务运行正常",
 		})
 	})
+
+	// 6. 代码检查接口
+	r.POST("/api/check/code", func(c *gin.Context) {
+		file, err := c.FormFile("codeFile")
+		if err != nil {
+			c.JSON(400, gin.H{"error": "上传文件失败: " + err.Error()})
+			return
+		}
+
+		fileName := filepath.Base(file.Filename)
+		savePath := filepath.Join(tempCodeDir, fileName)
+		if err := c.SaveUploadedFile(file, savePath); err != nil {
+			c.JSON(500, gin.H{"error": "保存文件失败: " + err.Error()})
+			return
+		}
+
+		// 调试日志：打印文件名和解压路径
+		fmt.Printf("上传的文件名: %s\n", fileName)
+		fmt.Printf("保存路径: %s\n", savePath)
+
+		// 解压到 temp 文件夹
+		unzipPath := "temp/unzipped/"
+		os.MkdirAll(unzipPath, os.ModePerm)
+		cmd := exec.Command("unzip", "-o", savePath, "-d", unzipPath)
+		output, err := cmd.CombinedOutput()
+		fmt.Printf("解压命令输出: %s\n", string(output))
+		if err != nil {
+			fmt.Printf("解压文件失败: %s, 输出: %s\n", err.Error(), string(output))
+			c.JSON(500, gin.H{"error": "解压文件失败: " + err.Error()})
+			return
+		}
+
+		// 检查 requirements.txt 是否存在
+		requirementsPath := filepath.Join(unzipPath, "requirements.txt")
+		if _, err := os.Stat(requirementsPath); os.IsNotExist(err) {
+			fmt.Printf("未找到 requirements.txt 文件\n")
+			c.JSON(400, gin.H{"error": "未找到 requirements.txt 文件"})
+			return
+		}
+
+		// 调试日志：列出解压后的文件
+		files, err := os.ReadDir(unzipPath)
+		if err != nil {
+			fmt.Printf("读取解压目录失败: %s\n", err.Error())
+			c.JSON(500, gin.H{"error": "读取解压目录失败: " + err.Error()})
+			return
+		}
+		fmt.Println("解压后的文件列表:")
+		for _, file := range files {
+			fmt.Println(file.Name())
+		}
+
+		// 安全检查
+		securityResult := utils.CheckModelSecurity(unzipPath)
+		if !securityResult.Pass {
+			os.RemoveAll(unzipPath)
+			c.JSON(403, gin.H{
+				"error":  "模型安全评估不通过，禁止上传",
+				"reason": securityResult.Reason,
+				"threats": securityResult.Threats,
+			})
+			return
+		}
+
+		// 自动选择最佳路径
+		bestServiceID, err := getAvailableServiceID()
+		if err != nil {
+			c.JSON(500, gin.H{"error": "无法获取最佳服务路径: " + err.Error()})
+			return
+		}
+
+		bestPath := filepath.Join("services", strings.ToLower(bestServiceID)+"_service")
+		if err := os.MkdirAll(bestPath, 0777); err != nil {
+			c.JSON(500, gin.H{"error": "无法创建最佳路径: " + err.Error()})
+			return
+		}
+
+		finalPath := filepath.Join(bestPath, fileName)
+		if err := os.Rename(savePath, finalPath); err != nil {
+			c.JSON(500, gin.H{"error": "无法移动文件到最佳路径: " + err.Error()})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"msg":      "文件已上传到最佳路径",
+			"bestPath": finalPath,
+		})
+	})
+
 
 	// 启动服务（8081端口）
 	fmt.Println("Platform服务启动：0.0.0.0:8081")

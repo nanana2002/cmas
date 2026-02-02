@@ -4,7 +4,7 @@
 [CONFIG] 配置文件中容器cmas-site-2配置完成：MetricsURL=http://172.17.0.9:5000/metrics, CSCIID=172.17.0.9:5000
 [CONFIG] 容器cmas-site-3 IP获取成功：172.18.0.2
 [CONFIG] 配置文件中容器cmas-site-3配置完成：MetricsURL=http://172.18.0.2:5000/metrics, CSCIID=172.18.0.2:5000
-[2026-02-02 09:19:09] [CPS] [INFO] 启动路径选择服务，端口：8084
+[2026-02-02 09:59:44] [CPS] [INFO] 启动路径选择服务，端口：8084
 [GIN-debug] [WARNING] Creating an Engine instance with the Logger and Recovery middleware already attached.
 
 [GIN-debug] [WARNING] Running in "debug" mode. Switch to "release" mode in production.
@@ -16,4 +16,4 @@
 Please check https://github.com/gin-gonic/gin/blob/master/docs/doc.md#dont-trust-all-proxies for details.
 [GIN-debug] Listening and serving HTTP on :8084
 [GIN-debug] [ERROR] listen tcp :8084: bind: address already in use
-[2026-02-02 09:19:09] [CPS] [ERROR] 启动失败：listen tcp :8084: bind: address already in use
+[2026-02-02 09:59:44] [CPS] [ERROR] 启动失败：listen tcp :8084: bind: address already in use
