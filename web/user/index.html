@@ -113,7 +113,9 @@
         <div class="form-group">
             <label for="service-select">选择已注册的服务</label>
             <select id="service-select">
-                <option value="S3">S3 - 大模型轻量服务</option>
+                <option value="S1">S1 - 大模型对话服务</option>
+                <option value="S2">S2 - 文生图服务</option>
+                <option value="S3">S3 - ai修图服务</option>
                 <!-- 可添加其他服务选项 -->
             </select>
         </div>
@@ -275,6 +277,32 @@
                 submitBtn.disabled = false;
             });
         }
+
+        // 动态设置服务选择
+        function setServiceFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const service = urlParams.get('service');
+            const serviceSelect = document.getElementById('service-select');
+
+            if (service) {
+                switch (service) {
+                    case 'dialogue':
+                        serviceSelect.value = 'S1';
+                        break;
+                    case 'image-generation':
+                        serviceSelect.value = 'S2';
+                        break;
+                    case 'image-editing':
+                        serviceSelect.value = 'S3';
+                        break;
+                    default:
+                        console.warn('未知服务类型:', service);
+                }
+            }
+        }
+
+        // 页面加载时设置服务
+        window.onload = setServiceFromURL;
     </script>
 </body>
 </html>

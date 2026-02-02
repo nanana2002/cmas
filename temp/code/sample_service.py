@@ -1,12 +1,10 @@
 from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS  # 新增
 import time
 import os
 import uuid
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
 
 # 设置上传文件夹
 UPLOAD_FOLDER = '/app/uploads'
@@ -29,20 +27,20 @@ def run_service():
             file = request.files['file']
             service_id = request.form.get('service_id')
             input_text = request.form.get('input', '')
-
+            
             if file.filename == '':
                 return jsonify({
                     "success": False,
                     "result": "",
                     "msg": "没有选择文件"
                 }), 400
-
+            
             if file:
                 filename = secure_filename(file.filename)
                 unique_filename = f"{uuid.uuid4()}_{filename}"
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 file.save(file_path)
-
+                
                 # 返回图片URL和相关信息
                 result = {
                     "input_text": input_text,
@@ -51,7 +49,7 @@ def run_service():
                     "image_url": f"http://0.0.0.0:5000/uploads/{unique_filename}",
                     "service_id": service_id
                 }
-
+                
                 return jsonify({
                     "success": True,
                     "result": result,
@@ -88,6 +86,7 @@ def uploaded_file(filename):
 @app.route('/metrics', methods=['GET'])
 def get_metrics():
     # 原有的metrics接口（返回gas/cost/delay等）
+    import os
     service_id = os.environ.get('SERVICE_ID', 'S1')
     metrics = {
         "S1": {"service_id": "S1", "gas": 3, "cost": 4, "csci_id": "172.17.0.8:5000", "delay": 8},

@@ -1,0 +1,2 @@
+nohup: ignoring input
+cmd/c-ps/main.go:6:5: found packages utils (docker_cmd.go) and logger (logger.go) in /home/daiyina/cmas-cats-go/utils/logger

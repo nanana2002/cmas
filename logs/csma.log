@@ -1,0 +1,2 @@
+nohup: ignoring input
+cmd/c-sma/main.go:4:2: package cmas-cats-go/utils is not in std (/home/daiyina/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.24.11.linux-amd64/src/cmas-cats-go/utils)

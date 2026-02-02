@@ -1,12 +1,26 @@
+#!/bin/bash
+
+# CMAS System Test Setup Script
+
+echo "Setting up CMAS system for testing..."
+
+# Create required directories if they don't exist
+mkdir -p temp/code
+mkdir -p web/provider
+mkdir -p web/user
+mkdir -p services/s1-service/uploads
+mkdir -p services/s2-service/uploads
+mkdir -p services/s3-service/uploads
+
+# Create a sample Python service file for testing
+cat > temp/code/sample_service.py << 'EOF'
 from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS  # 新增
 import time
 import os
 import uuid
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-CORS(app)
 
 # 设置上传文件夹
 UPLOAD_FOLDER = '/app/uploads'
@@ -29,20 +43,20 @@ def run_service():
             file = request.files['file']
             service_id = request.form.get('service_id')
             input_text = request.form.get('input', '')
-
+            
             if file.filename == '':
                 return jsonify({
                     "success": False,
                     "result": "",
                     "msg": "没有选择文件"
                 }), 400
-
+            
             if file:
                 filename = secure_filename(file.filename)
                 unique_filename = f"{uuid.uuid4()}_{filename}"
                 file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
                 file.save(file_path)
-
+                
                 # 返回图片URL和相关信息
                 result = {
                     "input_text": input_text,
@@ -51,7 +65,7 @@ def run_service():
                     "image_url": f"http://0.0.0.0:5000/uploads/{unique_filename}",
                     "service_id": service_id
                 }
-
+                
                 return jsonify({
                     "success": True,
                     "result": result,
@@ -88,6 +102,7 @@ def uploaded_file(filename):
 @app.route('/metrics', methods=['GET'])
 def get_metrics():
     # 原有的metrics接口（返回gas/cost/delay等）
+    import os
     service_id = os.environ.get('SERVICE_ID', 'S1')
     metrics = {
         "S1": {"service_id": "S1", "gas": 3, "cost": 4, "csci_id": "172.17.0.8:5000", "delay": 8},
@@ -98,3 +113,11 @@ def get_metrics():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
+EOF
+
+echo "Setup complete!"
+echo "Directories and sample service created."
+echo "To run the system:"
+echo "1. Build the Docker image: cd docker-sites && docker build -t cmas-service:v1 ."
+echo "2. Start the services: docker run commands for S1, S2, S3"
+echo "3. Run the Go modules: go run cmd/platform/main.go, go run cmd/c-sma/main.go, go run cmd/c-ps/main.go"

@@ -1,134 +1,120 @@
 package main
 
 import (
-    "encoding/json"
-    "fmt"
-    "net/http"
-    "sync"
-    "time"
-
-    "cmas-cats-go/config"
-    "cmas-cats-go/models"
-    "cmas-cats-go/utils/logger"
-
-    "github.com/gin-gonic/gin"
+	"cmas-cats-go/models"
+	"cmas-cats-go/utils"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+	"time"
 )
 
-// 全局存储指标数据
-var metricsMap sync.Map
+// ServiceMetric 服务指标结构体
+type ServiceMetric struct {
+	ServiceID string  `json:"serviceID"`
+	IP        string  `json:"ip"`
+	Port      string  `json:"port"`
+	Gas       float64 `json:"gas"`
+	Cost      float64 `json:"cost"`
+	Delay     float64 `json:"delay"`
+}
+
+var metricMap = make(map[string][]models.ServiceInstanceInfo) // 存储所有服务指标
 
 func main() {
-    // 1. 创建Gin引擎
-    r := gin.Default()
+	// 定时扫描cmas容器（每5秒一次）
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			scanCmasContainers()
+		}
+	}()
 
-    // 2. 跨域中间件（必须在路由前加载）
-    r.Use(func(c *gin.Context) {
-        c.Header("Access-Control-Allow-Origin", "*")
-        c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-        c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-        c.Header("Access-Control-Max-Age", "86400")
-        if c.Request.Method == "OPTIONS" {
-            c.AbortWithStatus(204)
-            return
-        }
-        c.Next()
-    })
+	// 提供指标查询接口（给Provider前端调用）
+	http.HandleFunc("/api/metrics/all", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
-    // 3. 启动定时拉取指标的goroutine
-    go fetchMetricsLoop()
+		// 转换metricMap为JSON返回
+		response := make(map[string][]models.ServiceInstanceInfo)
+		for serviceID, instances := range metricMap {
+			response[serviceID] = instances
+		}
 
-    // 4. 定义/sync接口（供前端获取指标）
-    r.GET("/sync", func(c *gin.Context) {
-        // 构建返回数据
-        result := make(map[string][]models.ServiceInstanceInfo)
-        // 遍历metricsMap，转换为返回格式
-        metricsMap.Range(func(key, value interface{}) bool {
-            serviceID := key.(string)
-            instances := value.([]models.ServiceInstanceInfo)
-            result[serviceID] = instances
-            return true
-        })
+		json.NewEncoder(w).Encode(response)
+	})
 
-        // 返回JSON
-        c.JSON(http.StatusOK, gin.H{
-            "success": true,
-            "data":    result,
-            "msg":     "success",
-        })
-    })
+	// 提供同步指标接口（给CPS调用）
+	http.HandleFunc("/sync", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 
-    // 5. 启动CSMA服务（监听0.0.0.0:8083）
-    logger.Info("CSMA", "启动指标收集服务，端口：%d", config.Cfg.CSMA.Port)
-    if err := r.Run(fmt.Sprintf(":%d", config.Cfg.CSMA.Port)); err != nil {
-        logger.Error("CSMA", "启动失败：%v", err)
-    }
+		// 返回指标数据给CPS
+		response := map[string]interface{}{
+			"success": true,
+			"data":    metricMap,
+			"msg":     "指标同步成功",
+		}
+
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// 启动CSMA服务（8083端口）
+	fmt.Println("CSMA服务启动：0.0.0.0:8083")
+	http.ListenAndServe(":8083", nil)
 }
 
-// fetchMetricsLoop 定时拉取所有Site的指标（10秒/次）
-func fetchMetricsLoop() {
-    ticker := time.NewTicker(10 * time.Second)
-    defer ticker.Stop()
+// scanCmasContainers 扫描cmas容器，拉取指标
+func scanCmasContainers() {
+	// 1. 调用工具函数获取cmas容器列表
+	containerOutput, err := utils.ListCmasContainers()
+	if err != nil {
+		fmt.Printf("扫描容器失败: %v\n", err)
+		return
+	}
+	lines := strings.Split(containerOutput, "\n")
 
-    // 首次启动立即拉取一次
-    fetchAllMetrics()
+	// 临时存储新扫描到的指标
+	newMetrics := make(map[string][]models.ServiceInstanceInfo)
 
-    for range ticker.C {
-        fetchAllMetrics()
-    }
-}
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) < 5 {
+			continue
+		}
+		containerName := fields[0]
+		containerIP := fields[4]
+		serviceID := strings.TrimPrefix(containerName, "cmas-")
+		hostPort := strings.Split(fields[2], ":")[0] // 提取宿主机端口
 
-// fetchAllMetrics 拉取所有Docker Site的指标
-func fetchAllMetrics() {
-    logger.Info("CSMA", "开始拉取所有Site的指标")
-    var wg sync.WaitGroup
+		// 2. 拉取该容器的/metrics接口（用宿主机IP+端口）
+		metricURL := fmt.Sprintf("http://%s:%s/metrics", "192.168.235.48", hostPort) // 替换为你的服务器IP
+		resp, err := http.Get(metricURL)
+		if err != nil {
+			fmt.Printf("拉取%s指标失败: %v\n", serviceID, err)
+			continue
+		}
+		defer resp.Body.Close()
 
-    // 遍历配置中的所有Docker Site
-    for _, site := range config.Cfg.DockerSites {
-        if site.MetricsURL == "" {
-            logger.Warn("CSMA", "Site %s的MetricsURL为空，跳过拉取", site.ServiceID)
-            continue
-        }
+		// 3. 解析指标
+		var containerMetrics map[string]*models.ServiceInstanceInfo
+		if err := json.NewDecoder(resp.Body).Decode(&containerMetrics); err != nil {
+			fmt.Printf("解析%s指标失败: %v\n", serviceID, err)
+			continue
+		}
 
-        wg.Add(1)
-        // 并发拉取每个Site的指标
-        go func(site config.DockerSiteConfig) {
-            defer wg.Done()
-            logger.Debug("CSMA", "拉取指标：%s", site.MetricsURL)
+		// 4. 更新到newMetrics
+		for sid, metric := range containerMetrics {
+			// 更新CSCIID为容器内部IP:端口格式
+			metric.CSCIID = fmt.Sprintf("%s:%s", containerIP, "5000") // 使用容器内部端口
+			newMetrics[sid] = append(newMetrics[sid], *metric)
+			fmt.Printf("更新%s指标成功: %+v\n", sid, metric)
+		}
+	}
 
-            // 发送HTTP请求拉取指标
-            client := &http.Client{Timeout: 5 * time.Second}
-            resp, err := client.Get(site.MetricsURL)
-            if err != nil {
-                logger.Error("CSMA", "拉取失败：%s，错误：%v", site.MetricsURL, err)
-                return
-            }
-            defer resp.Body.Close()
-
-            // 解析返回的JSON数据（使用原有结构体 ServiceInstanceInfo）
-            var instance models.ServiceInstanceInfo
-            if err := json.NewDecoder(resp.Body).Decode(&instance); err != nil {
-                logger.Error("CSMA", "解析失败：%s，错误：%v", site.MetricsURL, err)
-                return
-            }
-
-            // 补充CSCIID和ServiceID（确保字段完整）
-            instance.CSCIID = site.CSCIID
-            instance.ServiceID = site.ServiceID
-
-            // 存储到全局map中
-            if _, ok := metricsMap.Load(instance.ServiceID); ok {
-                // 替换原有数据（去重）
-                metricsMap.Store(instance.ServiceID, []models.ServiceInstanceInfo{instance})
-            } else {
-                // 新增数据
-                metricsMap.Store(instance.ServiceID, []models.ServiceInstanceInfo{instance})
-            }
-
-            logger.Info("CSMA", "拉取成功：%s，指标：%+v", site.MetricsURL, instance)
-        }(site)
-    }
-
-    // 等待所有拉取任务完成
-    wg.Wait()
-    logger.Info("CSMA", "所有Site指标拉取完成")
+	// 5. 将新指标更新到全局metricMap
+	metricMap = newMetrics
 }

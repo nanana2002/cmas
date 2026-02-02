@@ -1,7 +1,7 @@
 FROM python:3.9-slim
 WORKDIR /app
 COPY app.py .
-RUN pip install --no-cache-dir flask
+RUN pip install --no-cache-dir flask flask-cors werkzeug
 EXPOSE 5000
 
 # 获取宿主机用户ID（构建时传入，或运行时指定）

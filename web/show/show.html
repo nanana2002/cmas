@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大模型服务展示</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            overflow-x: hidden;
+        }
+        .carousel {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+        }
+        .card {
+            flex: 0 0 80%;
+            scroll-snap-align: center;
+            margin: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            cursor: pointer;
+        }
+        .card img {
+            max-width: 80%; /* Reduce image size */
+            height: auto;
+            border-radius: 8px;
+        }
+        .card h2 {
+            margin: 10px 0;
+            color: #333;
+        }
+        .card p {
+            margin: 5px 0;
+            color: #666;
+        }
+    </style>
+    <script>
+        function navigateToUser(service) {
+            window.location.href = `/user?service=${service}`;
+        }
+    </script>
+</head>
+<body>
+    <div class="carousel">
+        <div class="card" onclick="navigateToUser('dialogue')">
+            <img src="/fig/1.png" alt="大模型对话服务">
+            <h2>大模型对话服务</h2>
+            <p>简要介绍：提供智能对话功能</p>
+            <p>Cost：8</p>
+        </div>
+        <div class="card" onclick="navigateToUser('image-generation')">
+            <img src="/fig/2.png" alt="文生图服务">
+            <h2>文生图服务</h2>
+            <p>简要介绍：将文本生成图像</p>
+            <p>Cost：20</p>
+        </div>
+        <div class="card" onclick="navigateToUser('image-editing')">
+            <img src="/fig/3.png" alt="AI 修图服务">
+            <h2>AI 修图服务</h2>
+            <p>简要介绍：智能修图功能</p>
+            <p>Cost：30</p>
+        </div>
+    </div>
+</body>
+</html>

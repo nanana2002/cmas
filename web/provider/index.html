@@ -2,78 +2,295 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>服务提供者 - CMAS指标监控</title>
+    <title>CMAS服务提供者 - 全自动创建容器</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: Arial, sans-serif; padding: 20px; background-color: #f5f5f5; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #333; margin-bottom: 20px; }
-        .refresh-info { color: #666; margin-bottom: 15px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background-color: #f0f0f0; font-weight: bold; }
-        tr:hover { background-color: #f9f9f9; }
-        .metric-item { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
-        .loading { color: #007bff; font-style: italic; }
-        .error { color: #dc3545; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { color: #2c3e50; margin-bottom: 25px; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+        .form-group { margin: 20px 0; }
+        label { display: inline-block; width: 140px; font-weight: 600; color: #34495e; font-size: 15px; }
+        .auto-param { color: #27ae60; font-weight: 600; font-size: 14px; }
+        .loading-param { color: #95a5a6; font-style: italic; }
+        input[type="file"] { padding: 8px; width: 350px; border: 1px solid #bdc3c7; border-radius: 4px; font-size: 14px; }
+        button { 
+            padding: 10px 25px; 
+            background-color: #3498db; 
+            color: white; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover { background-color: #2980b9; }
+        .msg { margin-left: 15px; font-size: 14px; padding: 5px 10px; border-radius: 4px; }
+        .success { color: #27ae60; background-color: #eafaf1; }
+        .error { color: #e74c3c; background-color: #fdedeb; }
+        .loading { color: #3498db; font-style: italic; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ecf0f1; }
+        th { background-color: #f8f9fa; color: #2c3e50; font-weight: 600; }
+        tr:hover { background-color: #f8f9fa; }
+        .refresh-info { color: #7f8c8d; margin-bottom: 15px; font-size: 14px; }
     </style>
 </head>
 <body>
+    <!-- 自动创建容器表单 -->
     <div class="container">
-        <h1>CMAS 服务指标监控（服务提供者端）</h1>
-        <div class="refresh-info">最后刷新时间：<span id="last-refresh">--</span> | 自动刷新：10秒/次</div>
-        <div id="metrics-container">
+        <h1>✨ 全自动创建CMAS服务容器</h1>
+        
+        <!-- 自动检测的可用参数 -->
+        <div class="form-group">
+            <label>可用服务ID：</label>
+            <span id="autoServiceID" class="loading-param">正在检测...</span>
+        </div>
+        <div class="form-group">
+            <label>可用容器IP：</label>
+            <span id="autoContainerIP" class="loading-param">正在检测...</span>
+        </div>
+        <div class="form-group">
+            <label>可用宿主机端口：</label>
+            <span id="autoHostPort" class="loading-param">正在检测...</span>
+        </div>
+
+        <!-- 代码上传 -->
+        <div class="form-group">
+            <label>上传服务代码：</label>
+            <input type="file" id="codeFile" accept=".py,.zip,.tar.gz">
+            <button onclick="uploadCode()">📤 上传代码</button>
+            <span id="codeMsg" class="msg"></span>
+        </div>
+
+        <!-- 创建容器 -->
+        <div class="form-group">
+            <label></label>
+            <button onclick="createContainer()" style="background-color: #27ae60;" disabled>🚀 创建并启动容器</button>
+            <span id="createMsg" class="msg"></span>
+        </div>
+    </div>
+
+    <!-- 指标监控区域 -->
+    <div class="container">
+        <h1>📊 CMAS服务指标监控</h1>
+        <div class="refresh-info">最后刷新：<span id="lastRefresh">--</span> | 自动刷新：10秒/次</div>
+        <div id="metricsContainer">
             <div class="loading">正在加载指标数据...</div>
         </div>
     </div>
 
     <script>
-        // 格式化时间
-        function formatTime(timestamp) {
-            return new Date(timestamp).toLocaleString('zh-CN');
-        }
+        // 核心配置
+        const CONFIG = {
+            serverIP: "192.168.235.48",
+            platformPort: 8081,
+            csmaPort: 8083,
+            uploadDirBase: "/home/daiyina/cmas-cats-go/services/"
+        };
 
-        // 加载指标数据
-        function loadMetrics() {
-            fetch('http://192.168.235.48:8083/sync')
-                .then(response => response.json())
+        // 存储自动检测的可用参数
+        let availableParams = {
+            serviceID: "",
+            containerIP: "",
+            hostPort: ""
+        };
+        let codePath = ""; // 上传的代码路径
+
+        // 页面加载时自动检测可用参数
+        window.onload = function() {
+            getAvailableParams(); // 获取可用参数
+            loadMetrics();        // 加载指标
+            setInterval(loadMetrics, 10000);
+        };
+
+        // 1. 获取可用参数（调用Platform接口）
+        function getAvailableParams() {
+            fetch(`http://${CONFIG.serverIP}:${CONFIG.platformPort}/api/get-available-params`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`检测参数失败：${response.status}`);
+                    return response.json();
+                })
                 .then(data => {
-                    if (!data.success) {
-                        document.getElementById('metrics-container').innerHTML = `<div class="error">加载失败：${data.msg || '未知错误'}</div>`;
+                    if (data.error) {
+                        document.getElementById('autoServiceID').textContent = "检测失败";
+                        document.getElementById('autoContainerIP').textContent = "检测失败";
+                        document.getElementById('autoHostPort').textContent = "检测失败";
+                        alert("检测可用参数失败：" + data.error);
                         return;
                     }
 
-                    // 构建指标表格
-                    let html = '<table><tr><th>服务ID</th><th>容器IP:端口</th><th>可用实例数(Gas)</th><th>成本(Cost)</th><th>延迟(Delay/ms)</th><th>状态</th></tr>';
-                    const metrics = data.data;
-                    for (const serviceId in metrics) {
-                        metrics[serviceId].forEach(item => {
-                            const status = item.gas > 0 ? '正常' : '无可用实例';
-                            const statusColor = item.gas > 0 ? '#28a745' : '#dc3545';
-                            html += `<tr>
-                                <td>${item.service_id}</td>
-                                <td>${item.csci_id}</td>
-                                <td>${item.gas}</td>
-                                <td>${item.cost}</td>
-                                <td>${item.delay}</td>
-                                <td style="color: ${statusColor}">${status}</td>
-                            </tr>`;
-                        });
-                    }
-                    html += '</table>';
+                    // 更新页面显示
+                    availableParams = data;
+                    document.getElementById('autoServiceID').textContent = data.serviceID;
+                    document.getElementById('autoContainerIP').textContent = data.containerIP;
+                    document.getElementById('autoHostPort').textContent = data.hostPort;
+                    document.getElementById('autoServiceID').className = "auto-param";
+                    document.getElementById('autoContainerIP').className = "auto-param";
+                    document.getElementById('autoHostPort').className = "auto-param";
 
-                    // 更新页面
-                    document.getElementById('metrics-container').innerHTML = html;
-                    document.getElementById('last-refresh').textContent = formatTime(Date.now());
+                    // 启用创建容器按钮
+                    document.querySelector('button[onclick="createContainer()"]').disabled = false;
                 })
                 .catch(error => {
-                    document.getElementById('metrics-container').innerHTML = `<div class="error">加载失败：${error.message}</div>`;
+                    document.getElementById('autoServiceID').textContent = "检测失败";
+                    document.getElementById('autoContainerIP').textContent = "检测失败";
+                    document.getElementById('autoHostPort').textContent = "检测失败";
+                    console.error("获取可用参数失败：", error);
                 });
         }
 
-        // 初始加载 + 定时刷新
-        loadMetrics();
-        setInterval(loadMetrics, 10000); // 10秒刷新一次
+        // 2. 上传代码
+        async function uploadCode() {
+            const fileInput = document.getElementById('codeFile');
+            const codeMsg = document.getElementById('codeMsg');
+
+            if (!fileInput.files.length) {
+                codeMsg.textContent = '请选择一个文件';
+                codeMsg.className = 'msg error';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('codeFile', fileInput.files[0]);
+
+            codeMsg.textContent = '上传中...';
+            codeMsg.className = 'msg loading';
+
+            try {
+                const response = await fetch('/api/upload/code', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    codeMsg.textContent = `上传成功！代码已存储到: ${result.bestPath}`;
+                    codeMsg.className = 'msg success';
+                } else {
+                    codeMsg.textContent = `上传失败: ${result.error}`;
+                    codeMsg.className = 'msg error';
+                }
+            } catch (error) {
+                codeMsg.textContent = `上传失败: ${error.message}`;
+                codeMsg.className = 'msg error';
+            }
+        }
+        // 3. 创建容器（使用自动检测的参数）
+        function createContainer() {
+            const createMsg = document.getElementById('createMsg');
+            
+            // 校验
+            if (!codePath) {
+                createMsg.className = "msg error";
+                createMsg.textContent = "❌ 请先上传服务代码！";
+                return;
+            }
+            if (!availableParams.serviceID) {
+                createMsg.className = "msg error";
+                createMsg.textContent = "❌ 未检测到可用参数，请刷新页面！";
+                return;
+            }
+
+            // 构建请求参数
+            const reqData = {
+                serviceID: availableParams.serviceID,
+                containerIP: availableParams.containerIP,
+                hostPort: availableParams.hostPort,
+                codePath: codePath,
+                uploadDir: `${CONFIG.uploadDirBase}${availableParams.serviceID}-service/uploads`
+            };
+
+            fetch(`http://${CONFIG.serverIP}:${CONFIG.platformPort}/api/docker/create`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(reqData)
+            })
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP错误：${response.status}`);
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    createMsg.className = "msg error";
+                    createMsg.textContent = `❌ ${data.error}`;
+                } else {
+                    createMsg.className = "msg success";
+                    createMsg.textContent = `✅ ${data.msg}`;
+                    // 重置状态 + 重新检测可用参数
+                    document.getElementById('codeFile').value = "";
+                    document.getElementById('codeMsg').textContent = "";
+                    codePath = "";
+                    getAvailableParams(); // 刷新可用参数
+                    loadMetrics();        // 刷新指标
+                }
+            })
+            .catch(error => {
+                createMsg.className = "msg error";
+                createMsg.textContent = `❌ 创建失败：${error.message}`;
+            });
+        }
+
+        // 4. 加载指标数据
+        function loadMetrics() {
+            fetch(`http://${CONFIG.serverIP}:${CONFIG.csmaPort}/sync`)
+                .then(response => {
+                    if (!response.ok) throw new Error(`接口访问失败：${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    const metricsContainer = document.getElementById('metricsContainer');
+                    const lastRefresh = document.getElementById('lastRefresh');
+                    lastRefresh.textContent = new Date().toLocaleString('zh-CN');
+
+                    if (!data.success) {
+                        metricsContainer.innerHTML = `<div class="error">❌ 加载失败：${data.msg || '未知错误'}</div>`;
+                        return;
+                    }
+
+                    const metrics = data.data;
+                    if (Object.keys(metrics).length === 0) {
+                        metricsContainer.innerHTML = "<div class='loading'>📭 暂无服务指标数据</div>";
+                        return;
+                    }
+
+                    let tableHtml = `
+                        <table>
+                            <tr>
+                                <th>服务ID</th>
+                                <th>容器IP:端口</th>
+                                <th>可用实例数(Gas)</th>
+                                <th>成本(Cost)</th>
+                                <th>延迟(Delay/ms)</th>
+                                <th>状态</th>
+                            </tr>
+                    `;
+
+                    for (const serviceId in metrics) {
+                        metrics[serviceId].forEach(item => {
+                            const status = item.gas > 0 ? '✅ 正常' : '❌ 无可用实例';
+                            const statusColor = item.gas > 0 ? '#27ae60' : '#e74c3c';
+                            tableHtml += `
+                                <tr>
+                                    <td>${item.service_id}</td>
+                                    <td>${item.csci_id}</td>
+                                    <td>${item.gas}</td>
+                                    <td>${item.cost}</td>
+                                    <td>${item.delay}</td>
+                                    <td style="color: ${statusColor}; font-weight: 600;">${status}</td>
+                                </tr>
+                            `;
+                        });
+                    }
+
+                    tableHtml += "</table>";
+                    metricsContainer.innerHTML = tableHtml;
+                })
+                .catch(error => {
+                    document.getElementById('metricsContainer').innerHTML = 
+                        `<div class="error">❌ 加载指标失败：${error.message}</div>`;
+                });
+        }
     </script>
 </body>
 </html>
